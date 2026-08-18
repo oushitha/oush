@@ -12,160 +12,45 @@ from pydantic import BaseModel, Field
 from langchain_core.runnables import RunnableLambda
 
 
+# ============================================================
+# 1. TOOLS
+# ============================================================
+
 @tool
 def search_movies(genre: str) -> str:
+    """Search for Indian movies by genre."""
+
     movies = {
         "sci-fi": "Cargo, 2.0, Mr. India",
         "comedy": "3 Idiots, Hera Pheri, Munna Bhai M.B.B.S.",
-        "action": "RRR, Vikram, Baahubali",
-        "drama": "12th Fail, Taare Zameen Par, Dangal",
-        "romance": "Jab We Met, Sita Ramam, Rockstar",
-        "thriller": "Drishyam, Andhadhun, Kahaani"
+        "action": "RRR, Vikram, Baahubali"
     }
 
     return movies.get(
         genre.lower(),
-        "No Indian movies found for that genre."
+        "No movies found for that genre"
     )
 
 
 @tool
-def change__to_f(temp_c: float) -> float:
+def change_to_f(temp_c: float) -> float:
+    """Convert Celsius to Fahrenheit."""
+
     return temp_c * 1.8 + 32
 
 
 @tool
 def get_weather(city: str) -> str:
-    geo_url = "https://geocoding-api.open-meteo.com/v1/search"
-
-    geo_params = {
-        "name": city,
-        "count": 1,
-        "language": "en",
-        "format": "json"
-    }
-
-    try:
-        geo_response = requests.get(
-            geo_url,
-            params=geo_params,
-            timeout=10
-        ).json()
-    except Exception:
-        return f"Could not find weather data for city: {city}"
-
-    if "results" not in geo_response:
-        return f"Could not find weather data for city: {city}"
-
-    location = geo_response["results"][0]
-
-    latitude = location["latitude"]
-    longitude = location["longitude"]
-
-    country = location.get("country", "")
-
-    if country.lower() != "india":
-        return "Weather information is available only for Indian cities."
-
-    weather_url = "https://api.open-meteo.com/v1/forecast"
-
-    weather_params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "current": "temperature_2m,weather_code",
-        "temperature_unit": "celsius"
-    }
-
-    try:
-        weather_response = requests.get(
-            weather_url,
-            params=weather_params,
-            timeout=10
-        ).json()["current"]
-    except Exception:
-        return f"Could not retrieve weather information for {city}."
-
-    result = {
-        "resolved_city": location["name"],
-        "temperature_celsius": weather_response["temperature_2m"],
-        "weather_code": weather_response["weather_code"]
-    }
-
-    return json.dumps(result)
-
-
-tools = [
-    get_weather,
-    search_movies,
-    change__to_f
-]
-
-
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
-llm_flash = ChatGoogleGenerativeAI(
-    model="gemma-4-31b-it",
-    api_key=GEMINI_API_KEY,
-    temperature=0
-)
-
-
-agent = create_agent(
-    model=llm_flash,
-    tools=tools,
-    system_prompt=(
-        "You are an Indian weather and Indian cinema assistant. "
-        "You are ONLY allowed to answer questions related to "
-        "weather in India, Indian cities weather, Indian movies, "
-        "Indian cinema, Indian actors, Indian actresses, Indian "
-        "movie genres, and Indian film recommendations. "
-        "If the user asks anything outside these topics, respond "
-        "with exactly this sentence: "
-        "'I am not authorized to answer questions outside of Indian weather and cinema.' "
-        "Do not answer general knowledge questions. "
-        "Do not answer programming questions. "
-        "Do not answer personal questions. "
-        "Do not answer questions about countries other than India."
-    )
-)
-
-
-class AgentInput(BaseModel):
-    input: str = Field(
-        description="Your message to the agent"
-    )
-
-
-def is_allowed_question(user_input: str) -> bool:
-    text = user_input.lower().strip()
-
-    weather_keywords = [
-        "weather",
-        "temperature",
-        "forecast",
-        "rain",
-        "raining",
-        "climate",
-        "humidity",
-        "hot",
-        "cold",
-        "wind",
-        "sunny",
-        "cloudy",
-        "storm",
-        "heat",
-        "degrees",
-        "celsius",
-        "fahrenheit"
-    ]
+    """Get current weather for an Indian city."""
 
     indian_cities = [
         "hyderabad",
         "delhi",
+        "new delhi",
         "mumbai",
-        "chennai",
         "bangalore",
         "bengaluru",
+        "chennai",
         "kolkata",
         "pune",
         "ahmedabad",
@@ -176,21 +61,213 @@ def is_allowed_question(user_input: str) -> bool:
         "indore",
         "bhopal",
         "visakhapatnam",
+        "vizag",
         "vijayawada",
         "warangal",
         "tirupati",
-        "kochi",
         "goa",
-        "patna",
         "surat",
-        "varanasi",
-        "agra",
-        "amritsar",
-        "nashik",
-        "noida",
-        "gurgaon",
-        "gurugram"
+        "patna",
+        "ranchi",
+        "kochi",
+        "thiruvananthapuram",
+        "mysore",
+        "mysuru"
     ]
+
+    city_lower = city.lower().strip()
+
+    if city_lower not in indian_cities:
+        return "Invalid input check properly"
+
+    try:
+
+        # Geocoding API
+        geo_url = "https://geocoding-api.open-meteo.com/v1/search"
+
+        geo_params = {
+            "name": city,
+            "count": 1,
+            "language": "en",
+            "format": "json"
+        }
+
+        geo_response = requests.get(
+            geo_url,
+            params=geo_params,
+            timeout=10
+        ).json()
+
+        if "results" not in geo_response:
+            return "Invalid input check properly"
+
+        location = geo_response["results"][0]
+
+        latitude = location["latitude"]
+        longitude = location["longitude"]
+
+        # Weather API
+        weather_url = "https://api.open-meteo.com/v1/forecast"
+
+        weather_params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current": "temperature_2m,weather_code",
+            "temperature_unit": "celsius"
+        }
+
+        weather_response = requests.get(
+            weather_url,
+            params=weather_params,
+            timeout=10
+        ).json()
+
+        current = weather_response["current"]
+
+        result = {
+            "resolved_city": location["name"],
+            "temperature_celsius": current["temperature_2m"],
+            "weather_code": current["weather_code"]
+        }
+
+        return json.dumps(result)
+
+    except Exception:
+        return "Invalid input check properly"
+
+
+# ============================================================
+# 2. TOOLS LIST
+# ============================================================
+
+tools = [
+    get_weather,
+    search_movies,
+    change_to_f
+]
+
+
+# ============================================================
+# 3. API KEY
+# ============================================================
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+if not GEMINI_API_KEY:
+    raise ValueError(
+        "GEMINI_API_KEY environment variable is not set."
+    )
+
+
+# ============================================================
+# 4. MODEL
+# ============================================================
+
+llm_flash = ChatGoogleGenerativeAI(
+    model="gemma-4-31b-it",
+    api_key=GEMINI_API_KEY,
+    temperature=0
+)
+
+
+# ============================================================
+# 5. AGENT
+# ============================================================
+
+agent = create_agent(
+    model=llm_flash,
+    tools=tools,
+
+    system_prompt=(
+        "You are an AI agent restricted to Indian weather "
+        "and Indian cinema. "
+
+        "You can also convert Celsius to Fahrenheit. "
+
+        "Do not answer questions outside these capabilities."
+    )
+)
+
+
+# ============================================================
+# 6. INPUT MODEL
+# ============================================================
+
+class AgentInput(BaseModel):
+
+    input: str = Field(
+        description="Message for the agent"
+    )
+
+
+# ============================================================
+# 7. VALIDATION
+# ============================================================
+
+def is_valid_input(user_input: str) -> bool:
+
+    text = user_input.lower().strip()
+
+    # --------------------------------------------------------
+    # Indian cities
+    # --------------------------------------------------------
+
+    indian_locations = [
+        "india",
+        "hyderabad",
+        "delhi",
+        "new delhi",
+        "mumbai",
+        "bangalore",
+        "bengaluru",
+        "chennai",
+        "kolkata",
+        "pune",
+        "ahmedabad",
+        "jaipur",
+        "lucknow",
+        "kanpur",
+        "nagpur",
+        "indore",
+        "bhopal",
+        "visakhapatnam",
+        "vizag",
+        "vijayawada",
+        "warangal",
+        "tirupati",
+        "goa",
+        "surat",
+        "patna",
+        "ranchi",
+        "kochi",
+        "thiruvananthapuram",
+        "mysore",
+        "mysuru"
+    ]
+
+    # --------------------------------------------------------
+    # Weather
+    # --------------------------------------------------------
+
+    weather_keywords = [
+        "weather",
+        "temperature",
+        "rain",
+        "rainfall",
+        "forecast",
+        "climate",
+        "humidity",
+        "wind",
+        "hot",
+        "cold",
+        "sunny",
+        "cloudy",
+        "storm"
+    ]
+
+    # --------------------------------------------------------
+    # Movies
+    # --------------------------------------------------------
 
     movie_keywords = [
         "movie",
@@ -204,124 +281,173 @@ def is_allowed_question(user_input: str) -> bool:
         "actor",
         "actress",
         "director",
-        "movie recommendation",
-        "film recommendation",
-        "movie genre",
-        "action movie",
-        "comedy movie",
-        "romance movie",
-        "thriller movie",
-        "sci-fi movie",
-        "drama movie"
-    ]
+        "producer",
+        "indian movie",
+        "indian movies",
+        "indian cinema",
 
-    indian_movies = [
         "rrr",
-        "baahubali",
         "bahubali",
+        "baahubali",
+        "vikram",
         "3 idiots",
         "hera pheri",
         "munna bhai",
-        "dangal",
-        "12th fail",
-        "drishyam",
-        "andhadhun",
-        "kahaani",
-        "jab we met",
-        "rockstar",
-        "sita ramam",
         "cargo",
-        "mr. india",
-        "vikram"
+        "mr india"
     ]
 
-    if any(word in text for word in weather_keywords):
+    # --------------------------------------------------------
+    # Temperature conversion
+    # --------------------------------------------------------
+
+    conversion_keywords = [
+        "celsius",
+        "fahrenheit",
+        "convert temperature",
+        "temperature conversion"
+    ]
+
+    # --------------------------------------------------------
+    # Check Indian weather
+    # --------------------------------------------------------
+
+    has_weather = any(
+        keyword in text
+        for keyword in weather_keywords
+    )
+
+    has_indian_location = any(
+        location in text
+        for location in indian_locations
+    )
+
+    if has_weather and has_indian_location:
         return True
 
-    if any(city in text for city in indian_cities):
-        if any(word in text for word in weather_keywords):
-            return True
+    # --------------------------------------------------------
+    # Check movies
+    # --------------------------------------------------------
 
-    if any(word in text for word in movie_keywords):
+    if any(
+        keyword in text
+        for keyword in movie_keywords
+    ):
         return True
 
-    if any(movie in text for movie in indian_movies):
+    # --------------------------------------------------------
+    # Check temperature conversion
+    # --------------------------------------------------------
+
+    if any(
+        keyword in text
+        for keyword in conversion_keywords
+    ):
         return True
+
+    # --------------------------------------------------------
+    # Everything else is INVALID
+    # --------------------------------------------------------
 
     return False
 
 
-def format_for_agent(x):
-    user_input = x["input"] if isinstance(x, dict) else x.input
-
-    if not is_allowed_question(user_input):
-        return {
-            "messages": [
-                (
-                    "assistant",
-                    "I am not authorized to answer questions outside of Indian weather and cinema."
-                )
-            ],
-            "blocked": True
-        }
-
-    return {
-        "messages": [
-            ("user", user_input)
-        ],
-        "blocked": False
-    }
-
-
-def run_agent(x):
-    if x.get("blocked", False):
-        return {
-            "messages": x["messages"]
-        }
-
-    return agent.invoke({
-        "messages": x["messages"]
-    })
-
+# ============================================================
+# 8. EXTRACT RESPONSE
+# ============================================================
 
 def extract_text_response(agent_output):
+
     if not isinstance(agent_output, dict):
         return str(agent_output)
 
     messages = agent_output.get("messages")
 
     if messages is None:
+
         for value in agent_output.values():
-            if isinstance(value, dict) and "messages" in value:
-                messages = value["messages"]
-                break
+
+            if isinstance(value, dict):
+
+                if "messages" in value:
+                    messages = value["messages"]
+                    break
 
     if messages:
-        last = messages[-1]
-        content = getattr(last, "content", None)
 
-        if content is not None:
-            return str(content)
+        last_message = messages[-1]
 
-        return str(last)
+        content = getattr(
+            last_message,
+            "content",
+            str(last_message)
+        )
 
-    return str(agent_output)
+        return content
+
+    return "Invalid input check properly"
 
 
-formatted_agent_chain = (
-    RunnableLambda(format_for_agent)
-    | RunnableLambda(run_agent)
-    | RunnableLambda(extract_text_response)
+# ============================================================
+# 9. VALIDATE FIRST, THEN CALL AGENT
+# ============================================================
+
+def run_agent(x):
+
+    user_input = (
+        x["input"]
+        if isinstance(x, dict)
+        else x.input
+    )
+
+    # ========================================================
+    # IMPORTANT:
+    # Invalid input NEVER reaches Gemini
+    # ========================================================
+
+    if not is_valid_input(user_input):
+
+        return "Invalid input check properly"
+
+    # ========================================================
+    # Valid input → send to agent
+    # ========================================================
+
+    agent_input = {
+        "messages": [
+            ("user", user_input)
+        ]
+    }
+
+    result = agent.invoke(agent_input)
+
+    return extract_text_response(result)
+
+
+# ============================================================
+# 10. CREATE RUNNABLE
+# ============================================================
+
+formatted_agent_chain = RunnableLambda(
+    run_agent
 ).with_types(
     input_type=AgentInput,
     output_type=str
 )
 
 
+# ============================================================
+# 11. FASTAPI
+# ============================================================
+
 app = FastAPI(
     title="Indian Weather and Cinema Agent"
 )
 
+
+# ============================================================
+# 12. LANGSERVE
+# ============================================================
 
 add_routes(
     app,
@@ -331,7 +457,12 @@ add_routes(
 )
 
 
+# ============================================================
+# 13. RUN SERVER
+# ============================================================
+
 if __name__ == "__main__":
+
     port = int(
         os.environ.get(
             "PORT",
